@@ -13,6 +13,9 @@ build/
 # Local config
 local.properties
 
+# Generated branding assets (keep local unless explicitly requested)
+branding/
+
 # OS
 .DS_Store
 Thumbs.db
