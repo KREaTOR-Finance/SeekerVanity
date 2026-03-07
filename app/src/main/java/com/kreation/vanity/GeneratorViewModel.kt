@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import com.solana.mobilewalletadapter.clientlib.successPayload
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -70,7 +71,8 @@ class GeneratorViewModel : ViewModel() {
         // Payment is per reveal (250 SKR). Searching is free.
         val mode = _ui.value.mode
 
-        _ui.value = _ui.value.copy(running = true, error = null)
+        // Clear any prior found result at start of a run
+        _ui.value = _ui.value.copy(running = true, error = null, found = null, revealMnemonic = null)
         attempts.set(0)
 
         job = viewModelScope.launch(Dispatchers.Default) {
@@ -99,17 +101,20 @@ class GeneratorViewModel : ViewModel() {
                 }
 
                 val foundFlag = java.util.concurrent.atomic.AtomicBoolean(false)
+                val winner = java.util.concurrent.atomic.AtomicReference<FoundWallet?>(null)
                 val workerCount = max(1, Runtime.getRuntime().availableProcessors() - 1)
 
                 val workers = (0 until workerCount).map {
                     launch {
                         while (!foundFlag.get() && kotlinx.coroutines.currentCoroutineContext().isActive) {
-                            val wallet = VanityWalletGenerator.generateMnemonicSolanaWallet(context, _ui.value.wordCount)
+                            val wallet = VanityWalletGenerator.generateMnemonicSolanaWallet(context)
                             attempts.incrementAndGet()
+
                             if (matcher(wallet.address)) {
+                                val found = FoundWallet(address = wallet.address, mnemonic24 = wallet.mnemonicWords)
                                 if (foundFlag.compareAndSet(false, true)) {
-                                    val found = FoundWallet(address = wallet.address, mnemonic24 = wallet.mnemonicWords)
-                                    _ui.value = _ui.value.copy(found = found, running = false)
+                                    winner.set(found)
+                                    com.kreation.vanity.util.SafeLog.i("MATCH_FOUND address=${com.kreation.vanity.util.SafeLog.redact(found.address)}")
                                 }
                                 break
                             }
@@ -117,8 +122,16 @@ class GeneratorViewModel : ViewModel() {
                     }
                 }
 
-                // Wait for any worker to find a match
+                // Wait for workers to finish
                 workers.forEach { it.join() }
+
+                // Commit winner to UI state exactly once
+                val w = winner.get()
+                if (w != null) {
+                    _ui.value = _ui.value.copy(found = w, running = false)
+                } else {
+                    _ui.value = _ui.value.copy(running = false)
+                }
 
             } catch (t: Throwable) {
                 _ui.value = _ui.value.copy(error = (t.message ?: t.toString()), running = false)
@@ -197,20 +210,48 @@ class GeneratorViewModel : ViewModel() {
 
                 val sender = com.solana.mobilewalletadapter.clientlib.ActivityResultSender(activity)
 
-                // TEMP: Payment wiring is being refactored to match the exact web3-solana API types.
-                // For now, just connect to an MWA wallet and report success.
-                val result = walletAdapter.connect(sender)
+                val result = walletAdapter.transact(sender) { authResult ->
+                    val payerBytes = authResult.accounts.first().publicKey
+                    val payer = com.solana.publickey.SolanaPublicKey(payerBytes)
+                    // Ensure wallet used for fee payer is also the token owner
+
+                    val blockhash = com.kreation.vanity.solana.SolanaRpc.getLatestBlockhash()
+                    val plan = com.kreation.vanity.solana.SkrPaywall.buildPlan(payer)
+
+                    com.kreation.vanity.util.SafeLog.i(
+                        "Pay&Reveal plan payer=${com.kreation.vanity.util.SafeLog.redact(com.kreation.vanity.solana.SkrPaywall.base58(plan.payer))} " +
+                            "decimals=${plan.decimals} amountBase=${plan.amountBaseUnits}"
+                    )
+
+                    val txBytes = com.kreation.vanity.solana.SkrPaywall.buildUnsignedPaymentTransaction(blockhash, plan)
+                    signAndSendTransactions(arrayOf(txBytes))
+                }
 
                 when (result) {
                     is com.solana.mobilewalletadapter.clientlib.TransactionResult.Success -> {
-                        com.kreation.vanity.util.SafeLog.i("Pay&Reveal: connected (payment step pending)")
-                        _ui.value = _ui.value.copy(error = "Connected wallet. SKR payment transaction wiring is pending.")
+                        val payload = result.successPayload
+                        val sigBytes = payload?.signatures?.firstOrNull()
+                        if (sigBytes == null) {
+                            _ui.value = _ui.value.copy(error = "Payment sent but no signature returned.")
+                            return@launch
+                        }
+                        val sig = com.funkatronics.encoders.Base58.encodeToString(sigBytes)
+                        com.kreation.vanity.util.SafeLog.i("Pay&Reveal signature=${com.kreation.vanity.util.SafeLog.redact(sig)}")
+
+                        val ok = com.kreation.vanity.solana.SolanaRpc.confirmSignature(sig)
+                        if (!ok) {
+                            _ui.value = _ui.value.copy(error = "Payment not confirmed yet. Try again in a moment.")
+                            return@launch
+                        }
+
+                        prepareReveal()
+                        onPaid()
                     }
                     is com.solana.mobilewalletadapter.clientlib.TransactionResult.NoWalletFound -> {
                         _ui.value = _ui.value.copy(error = "No MWA-compatible wallet found on device.")
                     }
                     is com.solana.mobilewalletadapter.clientlib.TransactionResult.Failure -> {
-                        _ui.value = _ui.value.copy(error = "Wallet connect failed: ${result.e.message}")
+                        _ui.value = _ui.value.copy(error = "Payment failed: ${result.message}")
                     }
                 }
             } catch (t: Throwable) {

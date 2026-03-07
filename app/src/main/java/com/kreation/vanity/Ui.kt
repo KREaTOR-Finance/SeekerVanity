@@ -81,10 +81,10 @@ fun VanityScreen() {
 
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Generator (stub)", style = MaterialTheme.typography.titleMedium)
+                Text("Deprecated screen", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "Next: implement multi-threaded keygen + live keys/sec + start/stop + results list.\n" +
-                        "Prefix mode (SKR) will be paywalled: 250 SKR per generation.",
+                    "This file is not used by the app navigation anymore (kept temporarily).\n" +
+                        "Main UI is in GeneratorScreen/AppNav.",
                     style = MaterialTheme.typography.bodyMedium
                 )
 
