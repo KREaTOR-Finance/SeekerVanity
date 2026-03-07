@@ -16,7 +16,24 @@ fun AppNav() {
 
     val generatorVm: GeneratorViewModel = viewModel()
 
-    NavHost(navController = nav, startDestination = "generator") {
+    val start = if (hasAcceptedDisclaimer(ctx)) "generator" else "welcome"
+
+    NavHost(navController = nav, startDestination = start) {
+        composable("welcome") {
+            WelcomeScreen(
+                onContinue = {
+                    setAcceptedDisclaimer(ctx, true)
+                    nav.navigate("generator") {
+                        popUpTo("welcome") { inclusive = true }
+                    }
+                },
+                onExit = {
+                    // Close app best-effort
+                    (ctx as? android.app.Activity)?.finish()
+                }
+            )
+        }
+
         composable("generator") {
             GeneratorScreen(
                 vm = generatorVm,

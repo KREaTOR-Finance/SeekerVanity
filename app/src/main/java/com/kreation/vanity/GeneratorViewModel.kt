@@ -1,8 +1,6 @@
 package com.kreation.vanity
 
 import android.content.Context
-import android.net.Uri
-import androidx.activity.ComponentActivity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -189,7 +187,7 @@ class GeneratorViewModel : ViewModel() {
      * We will implement MWA + SPL token transfer of 250 SKR to the treasury.
      * To do that we still need the **SKR mint address** and (optionally) token program (Token-2022 vs SPL Token).
      */
-    fun payAndReveal(activity: ComponentActivity, onPaid: () -> Unit) {
+    fun payAndReveal(mwa: com.kreation.vanity.mwa.MwaEnv, onPaid: () -> Unit) {
         val found = _ui.value.found
         if (found == null) {
             _ui.value = _ui.value.copy(error = "No found wallet to reveal.")
@@ -200,15 +198,8 @@ class GeneratorViewModel : ViewModel() {
             setAwaitingRevealPayment(true)
             com.kreation.vanity.util.SafeLog.i("Pay&Reveal: starting MWA transact")
             try {
-                val walletAdapter = com.solana.mobilewalletadapter.clientlib.MobileWalletAdapter(
-                    connectionIdentity = com.solana.mobilewalletadapter.clientlib.ConnectionIdentity(
-                        identityUri = Uri.parse("https://kreation.studio"),
-                        iconUri = Uri.parse("favicon.ico"),
-                        identityName = "Vanity"
-                    )
-                )
-
-                val sender = com.solana.mobilewalletadapter.clientlib.ActivityResultSender(activity)
+                val walletAdapter = mwa.adapter
+                val sender = mwa.sender
 
                 val result = walletAdapter.transact(sender) { authResult ->
                     val payerBytes = authResult.accounts.first().publicKey

@@ -195,23 +195,28 @@ fun GeneratorScreen(
                         Text("Found:", color = MaterialTheme.colorScheme.primary)
                         Text(ui.found!!.address)
 
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val mwa = com.kreation.vanity.mwa.LocalMwaEnv.current
+
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(
                                 onClick = {
-                                    val act = (ctx as? androidx.activity.ComponentActivity)
-                                    if (act != null) {
-                                        vm.payAndReveal(act) {
+                                    if (mwa != null) {
+                                        vm.payAndReveal(mwa) {
                                             onReveal(ui.found!!.mnemonic24)
                                         }
+                                    } else {
+                                        vm.stop()
                                     }
                                 },
-                                enabled = !ui.awaitingRevealPayment
+                                enabled = !ui.awaitingRevealPayment,
+                                modifier = Modifier.fillMaxWidth()
                             ) { Text(if (ui.awaitingRevealPayment) "Paying…" else "Pay & Reveal (250 SKR)") }
 
                             Button(
                                 onClick = { vm.discardFoundAndContinue() },
-                                enabled = !ui.awaitingRevealPayment
-                            ) { Text("Wipe & Try Again") }
+                                enabled = !ui.awaitingRevealPayment,
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("Wipe") }
                         }
                     }
 
