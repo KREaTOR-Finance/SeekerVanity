@@ -28,7 +28,7 @@ object VanityWalletGenerator {
      * NOTE: This does PBKDF2 (2048 rounds) per attempt; vanity search time varies by device.
      */
     fun generateMnemonicSolanaWallet(context: Context, wordCount: Int = 12): Wallet {
-        // Locked to 12 words for MVP.
+        // Keep 12 words for the current beta flow.
         val wl = getWordlist(context)
         val entropy = Bip39.generateEntropy(128)
         val mnemonic = Bip39.entropyToMnemonic(entropy, wl)

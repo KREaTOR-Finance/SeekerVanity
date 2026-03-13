@@ -34,10 +34,10 @@ import androidx.compose.ui.unit.dp
 fun GeneratorScreen(
     vm: GeneratorViewModel,
     onReveal: (List<String>) -> Unit,
-    onPayments: () -> Unit,
 ) {
     val ui by vm.ui.collectAsState()
     val ctx = androidx.compose.ui.platform.LocalContext.current
+    val mwa = com.kreation.vanity.mwa.LocalMwaEnv.current
 
     var showInfo by remember { mutableStateOf(false) }
 
@@ -76,7 +76,7 @@ fun GeneratorScreen(
                                 "It offers a devkit of common tools to help developers quickly migrate their app to SKR and Solana.",
                             style = MaterialTheme.typography.bodySmall
                         )
-                        Text("SeekerMigrate.com — Coming soon", style = MaterialTheme.typography.bodyMedium)
+                        Text("SeekerMigrate.com - Coming soon", style = MaterialTheme.typography.bodyMedium)
                         Text("Telegram: https://t.me/SeekerMigrate", style = MaterialTheme.typography.bodyMedium)
 
                         Spacer(Modifier.height(4.dp))
@@ -87,7 +87,7 @@ fun GeneratorScreen(
                         )
 
                         Text(
-                            "Payments: Pay & Reveal sends 250 SKR on mainnet to the project treasury.",
+                            "Reveal is free. No payment is required to view a found wallet seed phrase.",
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
@@ -111,7 +111,7 @@ fun GeneratorScreen(
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Seed phrase (12 words)", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "Seed Vault oriented MVP uses a 12-word BIP39 seed phrase for speed.",
+                        "Current beta flow uses a 12-word BIP39 seed phrase for speed.",
                         style = MaterialTheme.typography.bodySmall
                     )
 
@@ -135,7 +135,7 @@ fun GeneratorScreen(
                     }
 
                     Text(
-                        "Payment is per reveal (250 SKR). Searching is free.",
+                        "Searching and reveal are free.",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -190,31 +190,46 @@ fun GeneratorScreen(
                     Text("Attempts: ${ui.attempts}")
                     Text("Keys/sec: ${ui.keysPerSec}")
 
+                    Spacer(Modifier.height(6.dp))
+                    Text("MWA wallet", color = MaterialTheme.colorScheme.primary)
+                    Text(ui.connectedWalletAddress?.let { "Connected: $it" } ?: "Not connected")
+                    Text(
+                        "Connect uses standard Solana MWA ownership approval only.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+
+                    if (mwa != null) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = { vm.connectWallet(mwa) },
+                                enabled = !ui.connectingWallet && ui.connectedWalletAddress == null,
+                            ) {
+                                Text(if (ui.connectingWallet) "Connecting..." else "Connect")
+                            }
+                            Button(
+                                onClick = { vm.disconnectWallet(mwa) },
+                                enabled = !ui.connectingWallet && ui.connectedWalletAddress != null,
+                            ) {
+                                Text("Disconnect")
+                            }
+                        }
+                    } else {
+                        Text("MWA is unavailable in this context.", style = MaterialTheme.typography.bodySmall)
+                    }
+
                     if (ui.found != null) {
                         Spacer(Modifier.height(6.dp))
                         Text("Found:", color = MaterialTheme.colorScheme.primary)
                         Text(ui.found!!.address)
 
-                        val mwa = com.kreation.vanity.mwa.LocalMwaEnv.current
-
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(
-                                onClick = {
-                                    if (mwa != null) {
-                                        vm.payAndReveal(mwa) {
-                                            onReveal(ui.found!!.mnemonic24)
-                                        }
-                                    } else {
-                                        vm.stop()
-                                    }
-                                },
-                                enabled = !ui.awaitingRevealPayment,
+                                onClick = { vm.revealFound(onReveal) },
                                 modifier = Modifier.fillMaxWidth()
-                            ) { Text(if (ui.awaitingRevealPayment) "Paying…" else "Pay & Reveal (250 SKR)") }
+                            ) { Text("Reveal seed phrase") }
 
                             Button(
                                 onClick = { vm.discardFoundAndContinue() },
-                                enabled = !ui.awaitingRevealPayment,
                                 modifier = Modifier.fillMaxWidth()
                             ) { Text("Wipe") }
                         }

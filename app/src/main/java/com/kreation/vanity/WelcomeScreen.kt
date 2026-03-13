@@ -44,11 +44,11 @@ fun WelcomeScreen(
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Read this first", style = MaterialTheme.typography.titleMedium)
-                Text("• Wallets are generated on your phone only. We do not store your seed phrase.")
-                Text("• If you lose your seed phrase, you lose the wallet.")
-                Text("• Never share your seed phrase. We will never ask for it.")
-                Text("• Search is free. Pay 250 SKR to reveal a found wallet’s seed phrase.")
-                Text("• If you tap Wipe, that wallet is gone forever.")
+                Text("- Wallets are generated on your phone only. We do not store your seed phrase.")
+                Text("- If you lose your seed phrase, you lose the wallet.")
+                Text("- Never share your seed phrase. We will never ask for it.")
+                Text("- Search and reveal are free. No payment is required.")
+                Text("- If you tap Wipe, that wallet is gone forever.")
 
                 Text("\nBrought to you by @buidlerlabs LLC", style = MaterialTheme.typography.bodySmall)
             }

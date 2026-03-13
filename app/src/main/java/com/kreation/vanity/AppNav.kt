@@ -3,11 +3,9 @@ package com.kreation.vanity
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
 
 @Composable
 fun AppNav() {
@@ -41,8 +39,7 @@ fun AppNav() {
                     // Never persist; pass in-memory only.
                     generatorVm.setRevealMnemonic(mnemonic)
                     nav.navigate("reveal")
-                },
-                onPayments = { /* deprecated */ }
+                }
             )
         }
         composable("reveal") {

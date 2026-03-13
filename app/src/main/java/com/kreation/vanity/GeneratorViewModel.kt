@@ -3,11 +3,11 @@ package com.kreation.vanity
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.funkatronics.encoders.Base58
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import com.solana.mobilewalletadapter.clientlib.successPayload
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,7 +25,7 @@ data class GeneratorUiState(
     val suffix: String = "RAVEN",
     val ignoreCase: Boolean = true,
     val mode: VanityMode = VanityMode.SUFFIX,
-    // Locked: Seed Vault oriented (12-word only for MVP speed)
+    // Beta default: 12-word flow for speed and compatibility.
     val wordCount: Int = 12,
     val running: Boolean = false,
     val attempts: Long = 0,
@@ -33,7 +33,8 @@ data class GeneratorUiState(
     val found: FoundWallet? = null,
     val error: String? = null,
     val revealMnemonic: List<String>? = null,
-    val awaitingRevealPayment: Boolean = false,
+    val connectedWalletAddress: String? = null,
+    val connectingWallet: Boolean = false,
 )
 
 enum class VanityMode { SUFFIX, SKR_PREFIX }
@@ -58,7 +59,7 @@ class GeneratorViewModel : ViewModel() {
         _ui.value = _ui.value.copy(mode = mode, error = null)
     }
 
-    // Locked to 12 words for MVP (Seed Vault compatible; faster). Kept as a stub for future expansion.
+    // Keep 12 words for the current beta flow; retained as a stub for future expansion.
     fun setWordCount(v: Int) {
         _ui.value = _ui.value.copy(wordCount = 12)
     }
@@ -66,7 +67,6 @@ class GeneratorViewModel : ViewModel() {
     fun start(context: Context) {
         if (_ui.value.running) return
 
-        // Payment is per reveal (250 SKR). Searching is free.
         val mode = _ui.value.mode
 
         // Clear any prior found result at start of a run
@@ -146,7 +146,6 @@ class GeneratorViewModel : ViewModel() {
     }
 
     fun prepareReveal() {
-        // Only sets the mnemonic into reveal state; payment gating happens externally.
         val found = _ui.value.found ?: return
         _ui.value = _ui.value.copy(revealMnemonic = found.mnemonic24)
     }
@@ -160,7 +159,7 @@ class GeneratorViewModel : ViewModel() {
     private fun startPendingSearchIfNeeded() {
         // If user discarded while generator was stopped, restart search automatically.
         if (!_ui.value.running) {
-            // No-op for now; UI can call start() again. Keeping explicit to avoid auto-charging surprises.
+            // No-op for now; UI can call start() again.
         }
     }
 
@@ -168,88 +167,74 @@ class GeneratorViewModel : ViewModel() {
         _ui.value = _ui.value.copy(revealMnemonic = words)
     }
 
-    fun setAwaitingRevealPayment(v: Boolean) {
-        _ui.value = _ui.value.copy(awaitingRevealPayment = v)
-    }
-
     fun clearRevealMnemonic() {
         _ui.value = _ui.value.copy(revealMnemonic = null)
     }
 
     fun wipeAfterRevealComplete() {
-        // After a successful paid reveal, wipe everything.
         _ui.value = _ui.value.copy(found = null, revealMnemonic = null)
     }
 
-    /**
-     * Step 3 placeholder.
-     *
-     * We will implement MWA + SPL token transfer of 250 SKR to the treasury.
-     * To do that we still need the **SKR mint address** and (optionally) token program (Token-2022 vs SPL Token).
-     */
-    fun payAndReveal(mwa: com.kreation.vanity.mwa.MwaEnv, onPaid: () -> Unit) {
-        val found = _ui.value.found
-        if (found == null) {
-            _ui.value = _ui.value.copy(error = "No found wallet to reveal.")
-            return
-        }
-
+    fun connectWallet(mwa: com.kreation.vanity.mwa.MwaEnv) {
+        if (_ui.value.connectingWallet) return
         viewModelScope.launch {
-            setAwaitingRevealPayment(true)
-            com.kreation.vanity.util.SafeLog.i("Pay&Reveal: starting MWA transact")
+            _ui.value = _ui.value.copy(connectingWallet = true, error = null)
             try {
-                val walletAdapter = mwa.adapter
-                val sender = mwa.sender
-
-                val result = walletAdapter.transact(sender) { authResult ->
-                    val payerBytes = authResult.accounts.first().publicKey
-                    val payer = com.solana.publickey.SolanaPublicKey(payerBytes)
-                    // Ensure wallet used for fee payer is also the token owner
-
-                    val blockhash = com.kreation.vanity.solana.SolanaRpc.getLatestBlockhash()
-                    val plan = com.kreation.vanity.solana.SkrPaywall.buildPlan(payer)
-
-                    com.kreation.vanity.util.SafeLog.i(
-                        "Pay&Reveal plan payer=${com.kreation.vanity.util.SafeLog.redact(com.kreation.vanity.solana.SkrPaywall.base58(plan.payer))} " +
-                            "decimals=${plan.decimals} amountBase=${plan.amountBaseUnits}"
-                    )
-
-                    val txBytes = com.kreation.vanity.solana.SkrPaywall.buildUnsignedPaymentTransaction(blockhash, plan)
-                    signAndSendTransactions(arrayOf(txBytes))
-                }
-
-                when (result) {
+                when (val result = mwa.adapter.connect(mwa.sender)) {
                     is com.solana.mobilewalletadapter.clientlib.TransactionResult.Success -> {
-                        val payload = result.successPayload
-                        val sigBytes = payload?.signatures?.firstOrNull()
-                        if (sigBytes == null) {
-                            _ui.value = _ui.value.copy(error = "Payment sent but no signature returned.")
-                            return@launch
-                        }
-                        val sig = com.funkatronics.encoders.Base58.encodeToString(sigBytes)
-                        com.kreation.vanity.util.SafeLog.i("Pay&Reveal signature=${com.kreation.vanity.util.SafeLog.redact(sig)}")
-
-                        val ok = com.kreation.vanity.solana.SolanaRpc.confirmSignature(sig)
-                        if (!ok) {
-                            _ui.value = _ui.value.copy(error = "Payment not confirmed yet. Try again in a moment.")
-                            return@launch
-                        }
-
-                        prepareReveal()
-                        onPaid()
+                        val account = result.authResult.accounts.firstOrNull()?.publicKey
+                        val address = account?.let { Base58.encodeToString(it) }
+                        _ui.value = _ui.value.copy(
+                            connectedWalletAddress = address,
+                            error = if (address == null) "Wallet connected, but no account was returned." else null
+                        )
                     }
                     is com.solana.mobilewalletadapter.clientlib.TransactionResult.NoWalletFound -> {
                         _ui.value = _ui.value.copy(error = "No MWA-compatible wallet found on device.")
                     }
                     is com.solana.mobilewalletadapter.clientlib.TransactionResult.Failure -> {
-                        _ui.value = _ui.value.copy(error = "Payment failed: ${result.message}")
+                        _ui.value = _ui.value.copy(error = "Wallet connect failed: ${result.message}")
                     }
                 }
             } catch (t: Throwable) {
-                _ui.value = _ui.value.copy(error = "Pay & reveal error: ${t.message ?: t}")
+                _ui.value = _ui.value.copy(error = "Wallet connect error: ${t.message ?: t}")
             } finally {
-                setAwaitingRevealPayment(false)
+                _ui.value = _ui.value.copy(connectingWallet = false)
             }
         }
+    }
+
+    fun disconnectWallet(mwa: com.kreation.vanity.mwa.MwaEnv) {
+        if (_ui.value.connectingWallet) return
+        viewModelScope.launch {
+            _ui.value = _ui.value.copy(connectingWallet = true, error = null)
+            try {
+                when (val result = mwa.adapter.disconnect(mwa.sender)) {
+                    is com.solana.mobilewalletadapter.clientlib.TransactionResult.Success -> {
+                        _ui.value = _ui.value.copy(connectedWalletAddress = null)
+                    }
+                    is com.solana.mobilewalletadapter.clientlib.TransactionResult.NoWalletFound -> {
+                        _ui.value = _ui.value.copy(error = "No MWA-compatible wallet found on device.")
+                    }
+                    is com.solana.mobilewalletadapter.clientlib.TransactionResult.Failure -> {
+                        _ui.value = _ui.value.copy(error = "Wallet disconnect failed: ${result.message}")
+                    }
+                }
+            } catch (t: Throwable) {
+                _ui.value = _ui.value.copy(error = "Wallet disconnect error: ${t.message ?: t}")
+            } finally {
+                _ui.value = _ui.value.copy(connectingWallet = false)
+            }
+        }
+    }
+
+    fun revealFound(onReveal: (List<String>) -> Unit) {
+        val found = _ui.value.found
+        if (found == null) {
+            _ui.value = _ui.value.copy(error = "No found wallet to reveal.")
+            return
+        }
+        prepareReveal()
+        onReveal(found.mnemonic24)
     }
 }
