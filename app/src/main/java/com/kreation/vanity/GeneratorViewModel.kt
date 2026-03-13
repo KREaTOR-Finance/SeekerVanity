@@ -3,7 +3,6 @@ package com.kreation.vanity
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.funkatronics.encoders.Base58
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -33,7 +32,7 @@ data class GeneratorUiState(
     val found: FoundWallet? = null,
     val error: String? = null,
     val revealMnemonic: List<String>? = null,
-    val connectedWalletAddress: String? = null,
+    val walletConnected: Boolean = false,
     val connectingWallet: Boolean = false,
 )
 
@@ -182,12 +181,11 @@ class GeneratorViewModel : ViewModel() {
             try {
                 when (val result = mwa.adapter.connect(mwa.sender)) {
                     is com.solana.mobilewalletadapter.clientlib.TransactionResult.Success -> {
-                        val account = result.authResult.accounts.firstOrNull()?.publicKey
-                        val address = account?.let { Base58.encodeToString(it) }
-                        _ui.value = _ui.value.copy(
-                            connectedWalletAddress = address,
-                            error = if (address == null) "Wallet connected, but no account was returned." else null
-                        )
+                        val hasAccount = result.authResult.accounts.isNotEmpty()
+                        _ui.value = _ui.value.copy(walletConnected = hasAccount)
+                        if (!hasAccount) {
+                            _ui.value = _ui.value.copy(error = "Wallet connected, but no account was returned.")
+                        }
                     }
                     is com.solana.mobilewalletadapter.clientlib.TransactionResult.NoWalletFound -> {
                         _ui.value = _ui.value.copy(error = "No MWA-compatible wallet found on device.")
@@ -211,7 +209,7 @@ class GeneratorViewModel : ViewModel() {
             try {
                 when (val result = mwa.adapter.disconnect(mwa.sender)) {
                     is com.solana.mobilewalletadapter.clientlib.TransactionResult.Success -> {
-                        _ui.value = _ui.value.copy(connectedWalletAddress = null)
+                        _ui.value = _ui.value.copy(walletConnected = false)
                     }
                     is com.solana.mobilewalletadapter.clientlib.TransactionResult.NoWalletFound -> {
                         _ui.value = _ui.value.copy(error = "No MWA-compatible wallet found on device.")

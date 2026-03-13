@@ -1,6 +1,8 @@
 package com.kreation.vanity
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
@@ -16,7 +18,11 @@ fun AppNav() {
 
     val start = if (hasAcceptedDisclaimer(ctx)) "generator" else "welcome"
 
-    NavHost(navController = nav, startDestination = start) {
+    NavHost(
+        navController = nav,
+        startDestination = start,
+        modifier = Modifier.fillMaxSize()
+    ) {
         composable("welcome") {
             WelcomeScreen(
                 onContinue = {

@@ -4,9 +4,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
@@ -20,9 +24,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -38,59 +39,47 @@ fun GeneratorScreen(
     val ui by vm.ui.collectAsState()
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val mwa = com.kreation.vanity.mwa.LocalMwaEnv.current
-
-    var showInfo by remember { mutableStateOf(false) }
+    val walletButtonText = when {
+        ui.connectingWallet -> "Connecting..."
+        ui.walletConnected -> "Disconnect"
+        else -> "Connect Wallet"
+    }
 
     LazyColumn(
-        modifier = Modifier.padding(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .imePadding()
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "Vanity",
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Button(onClick = { showInfo = !showInfo }) {
-                    Text(if (showInfo) "Hide info" else "Info")
+            AppHeader(
+                action = {
+                    Button(
+                        onClick = {
+                            if (mwa != null) {
+                                if (ui.walletConnected) vm.disconnectWallet(mwa) else vm.connectWallet(mwa)
+                            }
+                        },
+                        enabled = mwa != null && !ui.connectingWallet,
+                    ) {
+                        Text(walletButtonText)
+                    }
                 }
-            }
+            )
         }
 
-        if (showInfo) {
-            item {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("About", style = MaterialTheme.typography.titleMedium)
-                        Text("Brought to you by @buidlerlabs LLC", style = MaterialTheme.typography.bodyMedium)
-
-                        Spacer(Modifier.height(4.dp))
-
-                        Text(
-                            "SeekerMigrate helps onboard app developers to the SKR ecosystem and Solana Mobile dApp Store. " +
-                                "It offers a devkit of common tools to help developers quickly migrate their app to SKR and Solana.",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        Text("SeekerMigrate.com - Coming soon", style = MaterialTheme.typography.bodyMedium)
-                        Text("Telegram: https://t.me/SeekerMigrate", style = MaterialTheme.typography.bodyMedium)
-
-                        Spacer(Modifier.height(4.dp))
-
-                        Text(
-                            "Security: on-device only, we do not store secrets. You can wipe found wallets irreversibly.",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-
-                        Text(
-                            "Reveal is free. No payment is required to view a found wallet seed phrase.",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Instructions & Helpers", style = MaterialTheme.typography.titleMedium)
+                    Text("1) Connect wallet from the top-right button (ownership approval only).")
+                    Text("2) Pick mode and pattern, then tap Start.")
+                    Text("3) When a match is found, either reveal the seed phrase or wipe it. Wipe permanently removes the generated address and seed phrase from this app.")
+                    Text("4) Verify the requested words to complete reveal.")
+                    Text("Wallet status: ${if (ui.walletConnected) "Connected" else "Not connected"}")
                 }
             }
         }
@@ -190,33 +179,6 @@ fun GeneratorScreen(
                     Text("Attempts: ${ui.attempts}")
                     Text("Keys/sec: ${ui.keysPerSec}")
 
-                    Spacer(Modifier.height(6.dp))
-                    Text("MWA wallet", color = MaterialTheme.colorScheme.primary)
-                    Text(ui.connectedWalletAddress?.let { "Connected: $it" } ?: "Not connected")
-                    Text(
-                        "Connect uses standard Solana MWA ownership approval only.",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-
-                    if (mwa != null) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(
-                                onClick = { vm.connectWallet(mwa) },
-                                enabled = !ui.connectingWallet && ui.connectedWalletAddress == null,
-                            ) {
-                                Text(if (ui.connectingWallet) "Connecting..." else "Connect")
-                            }
-                            Button(
-                                onClick = { vm.disconnectWallet(mwa) },
-                                enabled = !ui.connectingWallet && ui.connectedWalletAddress != null,
-                            ) {
-                                Text("Disconnect")
-                            }
-                        }
-                    } else {
-                        Text("MWA is unavailable in this context.", style = MaterialTheme.typography.bodySmall)
-                    }
-
                     if (ui.found != null) {
                         Spacer(Modifier.height(6.dp))
                         Text("Found:", color = MaterialTheme.colorScheme.primary)
@@ -248,6 +210,10 @@ fun GeneratorScreen(
                     )
                 }
             }
+        }
+
+        item {
+            PoweredByFooter()
         }
     }
 }

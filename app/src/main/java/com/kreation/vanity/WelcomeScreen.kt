@@ -3,8 +3,14 @@ package com.kreation.vanity
 import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
@@ -32,14 +38,16 @@ fun WelcomeScreen(
     onExit: () -> Unit,
 ) {
     Column(
-        modifier = Modifier.padding(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .imePadding()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(
-            text = "Vanity",
-            style = MaterialTheme.typography.headlineLarge,
-            color = MaterialTheme.colorScheme.primary
-        )
+        AppHeader()
 
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -48,9 +56,7 @@ fun WelcomeScreen(
                 Text("- If you lose your seed phrase, you lose the wallet.")
                 Text("- Never share your seed phrase. We will never ask for it.")
                 Text("- Search and reveal are free. No payment is required.")
-                Text("- If you tap Wipe, that wallet is gone forever.")
-
-                Text("\nBrought to you by @buidlerlabs LLC", style = MaterialTheme.typography.bodySmall)
+                Text("- If you tap Wipe, the generated wallet address and seed phrase are permanently lost because we do not store any wallet data.")
             }
         }
 
@@ -60,5 +66,7 @@ fun WelcomeScreen(
         Button(onClick = onExit, modifier = Modifier.fillMaxWidth()) {
             Text("Exit")
         }
+
+        PoweredByFooter()
     }
 }

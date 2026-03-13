@@ -17,6 +17,7 @@ import com.solana.mobilewalletadapter.clientlib.MobileWalletAdapter
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        actionBar?.hide()
 
         // IMPORTANT: ActivityResultSender must be created/registered before STARTED.
         val sender = ActivityResultSender(this)
