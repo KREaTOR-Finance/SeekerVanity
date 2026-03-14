@@ -24,7 +24,7 @@ class MainActivity : ComponentActivity() {
         val walletAdapter = MobileWalletAdapter(
             connectionIdentity = ConnectionIdentity(
                 identityUri = Uri.parse("https://kreation.studio"),
-                iconUri = Uri.parse("favicon.ico"),
+                iconUri = Uri.parse("https://kreation.studio/favicon.ico"),
                 identityName = "Vanity"
             )
         )
